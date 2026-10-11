@@ -41,3 +41,8 @@ class Config:
     telegram_chat_id: str | None = field(default_factory=lambda: os.getenv("TELEGRAM_CHAT_ID"))
     state_file: str = "state.json"
     log_file: str = "signals.log"
+
+    # Webhook TradingView (alertes envoyées par le script Pine)
+    tv_secret: str | None = field(default_factory=lambda: os.getenv("TV_WEBHOOK_SECRET"))
+    webhook_host: str = "127.0.0.1"  # 0.0.0.0 si derrière un reverse proxy HTTPS
+    webhook_port: int = 8080

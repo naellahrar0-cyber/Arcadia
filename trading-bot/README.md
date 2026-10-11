@@ -54,6 +54,32 @@ Sans Telegram configuré, les messages s'affichent dans le terminal et sont ajou
 3. Renseigne `TELEGRAM_BOT_TOKEN` et `TELEGRAM_CHAT_ID` dans `.env`
    (chargés depuis l'environnement, ex. `export $(cat .env | xargs)`).
 
+## Intégration TradingView
+
+Le dossier `tradingview/` contient `bot_signals.pine` : le même indicateur que le bot,
+affiché sur ton graphique, qui envoie une alerte JSON à chaque signal clôturé.
+
+1. Dans TradingView : **Pine Editor** → colle le contenu de `bot_signals.pine` → **Ajouter au graphique**.
+   Remplace `VOTRE_SECRET` dans le script par la valeur de `TV_WEBHOOK_SECRET`.
+2. Crée une alerte : condition **Bot Signals → Any alert() function call**,
+   fréquence **Once Per Bar Close**, **Notifications → Webhook URL** =
+   `https://<ton-domaine>/tradingview`.
+3. Sur ton serveur :
+   ```bash
+   export TV_WEBHOOK_SECRET='un-secret-long-et-aleatoire'
+   python -m trading_bot webhook --host 0.0.0.0 --port 8080
+   ```
+   TradingView doit atteindre le bot depuis Internet (ports 80 ou 443 uniquement) :
+   mets un reverse proxy HTTPS (Caddy, nginx) devant le port 8080.
+
+Le bot recalcule stop-loss et take-profit à partir de l'ATR envoyé par l'alerte, avec les
+mêmes règles que `config.py`, puis notifie. Un même signal n'est notifié qu'une fois.
+Sans secret valide, le webhook répond 401 ; sans `TV_WEBHOOK_SECRET`, il refuse de démarrer.
+
+> Le script Pine n'a pas pu être compilé ni exécuté dans TradingView pendant le développement.
+> Vérifie sur un graphique qu'il affiche les mêmes signaux que `python -m trading_bot scan`
+> sur la même période. Les moyennes peuvent différer légèrement à l'amorçage (historique court).
+
 ## Faire tourner le bot 24/7
 
 Le bot doit tourner en continu (VPS, Raspberry Pi, ou ton PC allumé). Exemple systemd :
@@ -77,5 +103,5 @@ pip install pytest && pytest
 - Les données viennent d'API publiques : elles peuvent avoir des trous ou des retards.
 - Le backtest ignore le glissement de prix, les frais réels de ton broker et la
   liquidité. Les résultats passés ne préjugent pas des résultats futurs.
-- Pas d'intégration TradingView (ses alertes passent par webhook, non implémenté ici).
+- L'intégration TradingView dépend d'une URL publique HTTPS et n'a pas été testée contre un vrai compte TradingView.
 - Une seule position à la fois par paire ; pas de gestion de corrélation entre paires.

@@ -40,6 +40,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("run", help="Boucle continue : brief quotidien + scans réguliers")
     bt = sub.add_parser("backtest", help="Teste la stratégie sur l'historique")
     bt.add_argument("--symbol", help="Une seule paire (défaut : toutes celles de la config)")
+    wh = sub.add_parser("webhook", help="Reçoit les alertes TradingView et notifie les signaux")
+    wh.add_argument("--host", help="Adresse d'écoute (défaut : 127.0.0.1)")
+    wh.add_argument("--port", type=int, help="Port d'écoute (défaut : 8080)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -53,7 +56,24 @@ def main(argv: list[str] | None = None) -> int:
         return _backtest(cfg, provider, args.symbol)
 
     notifier, state = Notifier(cfg), State(cfg.state_file)
-    if args.command == "scan":
+    if args.command == "webhook":
+        from .webhook import make_server
+
+        if args.host:
+            cfg.webhook_host = args.host
+        if args.port:
+            cfg.webhook_port = args.port
+        if not cfg.tv_secret:
+            parser.error("définissez TV_WEBHOOK_SECRET avant de lancer le webhook")
+        server = make_server(cfg, notifier, state)
+        logging.info("Webhook à l'écoute sur http://%s:%s/tradingview", *server.server_address)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
+    elif args.command == "scan":
         sent = scan(cfg, provider, notifier, state)
         print(f"{len(sent)} nouveau(x) signal(aux).")
     elif args.command == "brief":

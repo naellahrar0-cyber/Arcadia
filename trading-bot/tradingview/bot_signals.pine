@@ -1,0 +1,45 @@
+//@version=5
+// Bot Signals — pullback dans la tendance (mêmes règles que trading_bot/strategy.py)
+// Usage : ajouter le script au graphique, puis créer une alerte
+//   Condition : « Bot Signals » → « Any alert() function call »
+//   Fréquence : « Once Per Bar Close »
+//   Webhook URL : https://<votre-domaine>/tradingview
+// Remplacez VOTRE_SECRET par la valeur de TV_WEBHOOK_SECRET.
+// Les signaux ne sont émis qu'à la clôture des bougies (barstate.isconfirmed).
+
+indicator("Bot Signals — pullback tendance", overlay = true, max_labels_count = 500)
+
+// ---- Paramètres (identiques à trading_bot/config.py) ----
+emaFast  = input.int(20, "EMA rapide")
+emaSlow  = input.int(50, "EMA lente")
+emaTrend = input.int(200, "EMA tendance")
+rsiLen   = input.int(14, "RSI")
+atrLen   = input.int(14, "ATR")
+tol      = input.float(0.003, "Tolérance pullback", step = 0.001)
+
+// ---- Indicateurs ----
+ema1 = ta.ema(close, emaFast)
+ema2 = ta.ema(close, emaSlow)
+ema3 = ta.ema(close, emaTrend)
+r    = ta.rsi(close, rsiLen)
+a    = ta.atr(atrLen)
+
+upTrend   = close > ema3 and ema1 > ema2
+downTrend = close < ema3 and ema1 < ema2
+
+longOk  = upTrend and low <= ema1 * (1 + tol) and close > ema1 and r >= 40 and r <= 65
+shortOk = downTrend and high >= ema1 * (1 - tol) and close < ema1 and r >= 35 and r <= 60
+
+plotshape(longOk and barstate.isconfirmed, "Long", shape.triangleup, location.belowbar, color.new(color.green, 0), size = size.small)
+plotshape(shortOk and barstate.isconfirmed, "Short", shape.triangledown, location.abovebar, color.new(color.red, 0), size = size.small)
+
+// ---- Alertes JSON pour le bot ----
+timeStr = str.tostring(time, "yyyy-MM-dd'T'HH:mm:ss'Z'")
+
+if longOk and barstate.isconfirmed
+    msg = '{"secret":"VOTRE_SECRET","symbol":"' + syminfo.ticker + '","side":"LONG","price":' + str.tostring(close, format.mintick) + ',"atr":' + str.tostring(a, format.mintick) + ',"interval":"' + timeframe.period + '","time":"' + timeStr + '"}'
+    alert(msg, alert.freq_once_per_bar_close)
+
+if shortOk and barstate.isconfirmed
+    msg = '{"secret":"VOTRE_SECRET","symbol":"' + syminfo.ticker + '","side":"SHORT","price":' + str.tostring(close, format.mintick) + ',"atr":' + str.tostring(a, format.mintick) + ',"interval":"' + timeframe.period + '","time":"' + timeStr + '"}'
+    alert(msg, alert.freq_once_per_bar_close)

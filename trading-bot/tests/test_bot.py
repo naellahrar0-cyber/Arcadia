@@ -139,6 +139,79 @@ def test_scan_never_notifies_same_signal_twice(tmp_path, monkeypatch):
     assert len(notifier.messages) == 1
 
 
+def test_tradingview_long_payload_levels():
+    from trading_bot.webhook import signal_from_payload
+
+    cfg = Config(atr_stop_mult=1.5, reward_risk=2.0)
+    sig = signal_from_payload({"secret": "x", "symbol": "btcusdt", "side": "long", "price": 100.0,
+                               "atr": 2.0, "interval": "60", "time": "2026-10-11T14:00:00Z"}, cfg)
+    assert sig.side == "LONG" and sig.symbol == "BTCUSDT" and sig.interval == "1h"
+    assert sig.stop == pytest.approx(97.0) and sig.take_profit == pytest.approx(106.0)
+    assert sig.time == pd.Timestamp("2026-10-11 14:00", tz="UTC")
+
+
+def test_tradingview_short_payload_levels():
+    from trading_bot.webhook import signal_from_payload
+
+    sig = signal_from_payload({"symbol": "ETHUSDT", "side": "SHORT", "price": 100.0, "atr": 2.0,
+                               "interval": "D", "time": 1_760_191_200_000}, Config())
+    assert sig.stop == pytest.approx(103.0) and sig.take_profit == pytest.approx(94.0)
+    assert sig.interval == "1d"
+
+
+def test_tradingview_rejects_bad_payloads():
+    from trading_bot.webhook import PayloadError, signal_from_payload
+
+    for bad in ({"side": "LONG", "price": 1, "atr": 1},  # symbol manquant
+                {"symbol": "A", "side": "BUY", "price": 1, "atr": 1},
+                {"symbol": "A", "side": "LONG", "price": 0, "atr": 1},
+                {"symbol": "A", "side": "LONG", "price": 1, "atr": 1, "interval": "7m"}):
+        with pytest.raises(PayloadError):
+            signal_from_payload(bad, Config())
+
+
+def test_tradingview_secret_and_dedupe(tmp_path):
+    from trading_bot.webhook import handle_payload
+
+    notifier = FakeNotifier()
+    state = State(tmp_path / "s.json")
+    payload = {"secret": "good", "symbol": "BTCUSDT", "side": "LONG", "price": 100.0,
+               "atr": 2.0, "interval": "1h", "time": "2026-10-11T14:00:00Z"}
+    assert handle_payload(payload, Config(tv_secret=None), notifier, state)[0] == 503
+    assert handle_payload(dict(payload, secret="bad"), Config(tv_secret="good"), notifier, state)[0] == 401
+    assert handle_payload(payload, Config(tv_secret="good"), notifier, state) == (200, "signal notifié")
+    assert handle_payload(payload, Config(tv_secret="good"), notifier, state) == (200, "doublon ignoré")
+    assert len(notifier.messages) == 1
+
+
+def test_webhook_http_end_to_end(tmp_path):
+    import json as _json
+    import threading
+    import urllib.error
+    import urllib.request
+
+    from trading_bot.webhook import make_server
+
+    cfg = Config(tv_secret="good", state_file=str(tmp_path / "s.json"))
+    notifier = FakeNotifier()
+    server = make_server(cfg, notifier, State(cfg.state_file), host="127.0.0.1", port=0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_address[1]}/tradingview"
+    body = _json.dumps({"secret": "good", "symbol": "BTCUSDT", "side": "SHORT", "price": 100.0,
+                        "atr": 2.0, "interval": "60", "time": "2026-10-11T14:00:00Z"}).encode()
+    try:
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            assert resp.status == 200 and b"notifi" in resp.read()
+        with pytest.raises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(urllib.request.Request(url, data=body.replace(b"good", b"nope")), timeout=5)
+        assert err.value.code == 401
+        assert len(notifier.messages) == 1 and "SIGNAL SHORT — BTCUSDT (1h)" in notifier.messages[0]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_state_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     State(path).mark("k1")
