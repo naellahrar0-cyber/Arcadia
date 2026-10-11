@@ -33,6 +33,7 @@ def _backtest(cfg: Config, provider, only: str | None) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="trading_bot", description="Alertes de signaux + brief matinal")
     parser.add_argument("--provider", choices=["binance", "yahoo", "csv"], help="Source de données (défaut : config)")
+    parser.add_argument("--symbols", nargs="+", help="Remplace la liste de paires (ex. EURUSD=X GBPUSD=X pour XM via Yahoo)")
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("scan", help="Cherche les signaux sur la dernière bougie clôturée et notifie")
@@ -50,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg = Config()
     if args.provider:
         cfg.provider = args.provider
+    if args.symbols:
+        cfg.symbols = args.symbols
     provider = get_provider(cfg)
 
     if args.command == "backtest":

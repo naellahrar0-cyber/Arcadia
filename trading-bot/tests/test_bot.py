@@ -96,6 +96,19 @@ def test_binance_drops_forming_candle(monkeypatch):
     assert df["close"].iloc[-1] == 4.0  # la bougie 5 (en cours) est écartée
 
 
+def test_yahoo_forex_parse_drops_forming_candle(monkeypatch):
+    payload = {"chart": {"result": [{
+        "timestamp": [1_760_000_000 + i * 3600 for i in range(4)],
+        "indicators": {"quote": [{"open": [1.10, 1.11, 1.12, None], "high": [1.11, 1.12, 1.13, None],
+                                  "low": [1.09, 1.10, 1.11, None], "close": [1.105, 1.115, 1.125, None],
+                                  "volume": [0, 0, 0, None]}]},
+    }]}}
+    monkeypatch.setattr(data.requests, "get", lambda *a, **k: FakeResponse(payload))
+    df = data.YahooProvider().fetch("EURUSD=X", "1h", 10)
+    assert len(df) == 2  # la 4e bougie (vide, en cours) est écartée
+    assert df["close"].iloc[-1] == pytest.approx(1.115)
+
+
 def test_csv_provider(tmp_path):
     make_ohlc(n=50).reset_index().rename(columns={"index": "timestamp"}).to_csv(tmp_path / "TEST_1h.csv", index=False)
     df = CSVProvider(tmp_path).fetch("TEST", "1h", 10)

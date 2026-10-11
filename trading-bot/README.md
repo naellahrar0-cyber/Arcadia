@@ -54,6 +54,25 @@ Sans Telegram configuré, les messages s'affichent dans le terminal et sont ajou
 3. Renseigne `TELEGRAM_BOT_TOKEN` et `TELEGRAM_CHAT_ID` dans `.env`
    (chargés depuis l'environnement, ex. `export $(cat .env | xargs)`).
 
+## Utiliser avec XM (signaux seulement)
+
+Le bot ne passe aucun ordre. Il t'envoie l'alerte, tu places l'ordre dans XM.
+
+- **Données forex** : Yahoo fournit les paires en `SYMBOLE=X` (ex. `EURUSD=X`, `GBPUSD=X`,
+  `USDJPY=X`). Ce sont des cours moyens, pas les cours XM : l'écart (spread) de XM et le
+  décalage de prix peuvent déplacer ton entrée. Vérifie le prix dans MT4/MT5 avant d'ordonner.
+- **Lancer sur des paires forex** :
+  ```bash
+  python -m trading_bot --provider yahoo --symbols EURUSD=X GBPUSD=X USDJPY=X scan
+  python -m trading_bot --provider yahoo --symbols EURUSD=X GBPUSD=X USDJPY=X run
+  ```
+- **Taille** : l'alerte donne un nombre d'« unités » de la devise de base. Dans XM, un lot
+  standard = 100 000 unités ; convertis avant d'ordonner. Le risque fixé reste celui de
+  `capital` × `risk_per_trade` (1 % par défaut).
+- **Levier** : XM propose un fort effet de levier. Une perte de stop peut être amplifiée
+  si tu prends une taille trop grande. Commence sur un compte démo XM.
+- Le backtest peut aussi tourner sur Yahoo : `python -m trading_bot --provider yahoo --symbols EURUSD=X backtest`.
+
 ## Intégration TradingView
 
 Le dossier `tradingview/` contient `bot_signals.pine` : le même indicateur que le bot,
