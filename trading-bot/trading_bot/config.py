@@ -39,7 +39,7 @@ class Config:
     scan_every_minutes: int = 15
     brief_minute: int = 0  # brief envoyé chaque heure à cette minute
     news_tickers: list[str] = field(default_factory=lambda: [
-        "EURUSD=X", "GBPUSD=X", "USDJPY=X", "XAUUSD=X", "BTC-USD", "ETH-USD",
+        "EURUSD=X", "GBPUSD=X", "USDJPY=X", "GC=F", "BTC-USD", "ETH-USD",
     ])  # tickers Yahoo des actualités
     news_per_ticker: int = 2
     calendar_url: str | None = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"  # calendrier JSON (None = désactivé)

@@ -27,8 +27,8 @@ def scan(cfg, provider, notifier, state) -> list[Signal]:
     for symbol in cfg.symbols:
         try:
             df = provider.fetch(symbol, cfg.interval, cfg.lookback)
-        except Exception:  # une paire en erreur ne doit pas bloquer les autres
-            log.exception("Données indisponibles pour %s", symbol)
+        except Exception as exc:  # une paire en erreur ne doit pas bloquer les autres
+            log.error("Données indisponibles pour %s (%s)", symbol, type(exc).__name__)
             continue
         for text in regime_alerts(symbol, df, cfg):
             key = f"regime|{symbol}|{df.index[-1].isoformat()}|{text}"
@@ -53,8 +53,8 @@ def _snapshots(cfg, provider):
     for symbol in cfg.symbols:
         try:
             df = provider.fetch(symbol, cfg.interval, cfg.lookback)
-        except Exception:
-            log.exception("Données indisponibles pour %s", symbol)
+        except Exception as exc:
+            log.error("Données indisponibles pour %s (%s)", symbol, type(exc).__name__)
             failed.append(symbol)
             continue
         snapshots.append(snapshot(symbol, df, cfg))
