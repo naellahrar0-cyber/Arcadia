@@ -36,6 +36,7 @@ class Config:
     timezone: str = "Europe/Paris"
     brief_time: str = "08:00"
     scan_every_minutes: int = 15
+    max_signal_age_bars: int = 2  # ignore un signal plus vieux que N bougies (évite les alertes périmées)
 
     # Notifications
     telegram_token: str | None = field(default_factory=lambda: os.getenv("TELEGRAM_BOT_TOKEN"))

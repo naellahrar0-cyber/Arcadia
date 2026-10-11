@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from .brief import snapshot
+from .data import INTERVAL_MINUTES
 from .messages import format_brief, format_signal
 from .strategy import Signal, latest_signal
 
@@ -24,6 +25,10 @@ def scan(cfg, provider, notifier, state) -> list[Signal]:
             continue
         sig = latest_signal(symbol, df, cfg)
         if sig is None or state.seen(sig.key):
+            continue
+        max_age = timedelta(minutes=INTERVAL_MINUTES[cfg.interval] * cfg.max_signal_age_bars)
+        if datetime.now(timezone.utc) - sig.time.to_pydatetime() > max_age:
+            log.info("Signal %s %s ignoré : bougie trop ancienne (%s)", sig.side, sig.symbol, sig.time)
             continue
         notifier.send(format_signal(sig, cfg))
         state.mark(sig.key)

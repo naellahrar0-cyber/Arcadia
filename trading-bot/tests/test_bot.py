@@ -156,7 +156,8 @@ def test_brief_reports_failed_symbols():
 
 def test_scan_never_notifies_same_signal_twice(tmp_path, monkeypatch):
     cfg = Config(symbols=["TEST"], state_file=str(tmp_path / "s.json"), log_file=str(tmp_path / "l.log"))
-    sig = Signal("TEST", "1h", pd.Timestamp("2026-01-01", tz="UTC"), "LONG", 100.0, 98.0, 104.0)
+    fresh = pd.Timestamp.now(tz="UTC").floor("h") - pd.Timedelta(hours=1)
+    sig = Signal("TEST", "1h", fresh, "LONG", 100.0, 98.0, 104.0)
     monkeypatch.setattr("trading_bot.runner.latest_signal", lambda s, df, c: sig)
 
     class Provider:
@@ -240,6 +241,22 @@ def test_webhook_http_end_to_end(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_scan_ignores_stale_signal(tmp_path, monkeypatch):
+    from trading_bot.runner import scan
+
+    cfg = Config(symbols=["TEST"], state_file=str(tmp_path / "s.json"), log_file=str(tmp_path / "l.log"))
+    old = Signal("TEST", "1h", pd.Timestamp("2026-01-01", tz="UTC"), "LONG", 100.0, 98.0, 104.0)
+    monkeypatch.setattr("trading_bot.runner.latest_signal", lambda s, df, c: old)
+
+    class Provider:
+        def fetch(self, symbol, interval, limit):
+            return make_ohlc(n=50)
+
+    notifier = FakeNotifier()
+    assert scan(cfg, Provider(), notifier, State(cfg.state_file)) == []
+    assert notifier.messages == []
 
 
 def test_state_roundtrip(tmp_path):
