@@ -33,8 +33,8 @@ class Config:
     max_hold_bars: int = 48  # sortie au bout de N bougies si ni SL ni TP
 
     # Planning
-    timezone: str = "Europe/Paris"  # planning du brief et des scans
-    display_timezone: str = "Africa/Casablanca"  # heure affichée dans les messages
+    timezone: str = "Africa/Casablanca"  # planning du brief et des scans (heure du Maroc)
+    display_timezone: str = "Africa/Casablanca"  # heure affichée dans les messages (heure du Maroc)
     brief_time: str = "08:00"
     scan_every_minutes: int = 15
     max_signal_age_bars: int = 2  # ignore un signal plus vieux que N bougies (évite les alertes périmées)
