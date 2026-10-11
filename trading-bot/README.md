@@ -63,8 +63,8 @@ Le bot ne passe aucun ordre. Il t'envoie l'alerte, tu places l'ordre dans XM.
   décalage de prix peuvent déplacer ton entrée. Vérifie le prix dans MT4/MT5 avant d'ordonner.
 - **Lancer sur des paires forex** :
   ```bash
-  python -m trading_bot --provider yahoo --symbols EURUSD=X GBPUSD=X USDJPY=X scan
-  python -m trading_bot --provider yahoo --symbols EURUSD=X GBPUSD=X USDJPY=X run
+  python -m trading_bot --provider yahoo --symbols EURUSD=X,GBPUSD=X,USDJPY=X scan
+  python -m trading_bot --provider yahoo --symbols EURUSD=X,GBPUSD=X,USDJPY=X run
   ```
 - **Taille** : l'alerte donne un nombre d'« unités » de la devise de base. Dans XM, un lot
   standard = 100 000 unités ; convertis avant d'ordonner. Le risque fixé reste celui de
