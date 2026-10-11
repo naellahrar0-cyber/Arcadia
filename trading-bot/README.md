@@ -56,6 +56,18 @@ Sans Telegram configuré, les messages s'affichent dans le terminal et sont ajou
 3. Renseigne `TELEGRAM_BOT_TOKEN` et `TELEGRAM_CHAT_ID` dans `.env`
    (chargés depuis l'environnement, ex. `export $(cat .env | xargs)`).
 
+## Alertes de marché et événements
+
+- **Changement de marché** : alerte si la volatilité dépasse 2 fois sa normale, ou si le prix
+  passe de l'autre côté de la moyenne 200 sur une bougie clôturée.
+- **Événements à fort impact** : alerte 30 minutes avant une annonce concernant tes devises
+  (calendrier économique configuré dans `calendar_url`, par défaut un calendrier JSON public).
+  Vérifie que le lien répond sur ton Mac avant de t'y fier.
+- **Actualités** : le biais affiché (haussier / baissier / neutre) est calculé à partir de
+  mots-clés dans les titres. C'est un indice très approximatif, pas une analyse.
+
+Le bot ne prédit pas le sens d'un mouvement : il signale les changements et les moments à risque.
+
 ## Utiliser avec XM (signaux seulement)
 
 Le bot ne passe aucun ordre. Il t'envoie l'alerte, tu places l'ordre dans XM.

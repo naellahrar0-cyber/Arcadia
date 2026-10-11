@@ -338,6 +338,61 @@ def test_brief_command_includes_news(tmp_path, monkeypatch):
     assert "Brief marché" in notifier.messages[0] and "ECB headline" in notifier.messages[0]
 
 
+def test_headline_bias_and_currencies():
+    from trading_bot.alerts import currencies_for, headline_bias
+
+    assert headline_bias(["Euro rises on ECB hopes", "Stocks rally as yields ease"]) == "haussier"
+    assert headline_bias(["Dollar slides", "Yen fall deepens", "Sharp drop in bonds"]) == "baissier"
+    assert headline_bias(["Markets wait for data"]) == "neutre"
+    assert currencies_for("EURUSD=X") == {"EUR", "USD"}
+    assert currencies_for("XAUUSD=X") == {"USD"}
+    assert currencies_for("BTC-USD") == {"USD"}
+
+
+def test_regime_alert_on_volatility_spike():
+    from trading_bot.alerts import regime_alerts
+
+    df = make_ohlc(n=400, seed=5, vol=0.002)
+    spike = df.copy()
+    spike.iloc[-1, spike.columns.get_loc("high")] = spike["close"].iloc[-1] * 1.08
+    spike.iloc[-1, spike.columns.get_loc("low")] = spike["close"].iloc[-1] * 0.92
+    assert any("Volatilité" in a for a in regime_alerts("TEST", spike, Config()))
+    assert not any("Volatilité" in a for a in regime_alerts("TEST", df, Config()))
+
+
+def test_upcoming_event_alerts_only_for_traded_currencies():
+    from trading_bot.alerts import upcoming_alerts
+
+    now = pd.Timestamp("2026-10-12 12:00", tz="UTC")
+    events = [
+        {"title": "ECB speech", "country": "EUR", "time": now + pd.Timedelta(minutes=10)},
+        {"title": "BoJ decision", "country": "JPY", "time": now + pd.Timedelta(minutes=10)},
+        {"title": "Far event", "country": "EUR", "time": now + pd.Timedelta(hours=3)},
+    ]
+    got = upcoming_alerts(events, ["EURUSD=X"], now, 30)
+    assert [e["title"] for e in got] == ["ECB speech"]
+
+
+def test_fetch_events_keeps_high_impact_only(monkeypatch):
+    from trading_bot import alerts
+
+    payload = [
+        {"title": "CPI y/y", "country": "USD", "impact": "High", "date": "2026-10-12T14:30:00-04:00"},
+        {"title": "Minor", "country": "USD", "impact": "Low", "date": "2026-10-12T15:00:00-04:00"},
+    ]
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(alerts.requests, "get", lambda *a, **k: Resp())
+    events = alerts.fetch_events("https://example.invalid/cal.json")
+    assert len(events) == 1 and events[0]["time"] == pd.Timestamp("2026-10-12 18:30", tz="UTC")
+
+
 def test_state_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     State(path).mark("k1")

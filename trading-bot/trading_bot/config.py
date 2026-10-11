@@ -42,6 +42,8 @@ class Config:
         "EURUSD=X", "GBPUSD=X", "USDJPY=X", "XAUUSD=X", "BTC-USD", "ETH-USD",
     ])  # tickers Yahoo des actualités
     news_per_ticker: int = 2
+    calendar_url: str | None = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"  # calendrier JSON (None = désactivé)
+    alert_minutes_before: int = 30  # alerte avant un événement à fort impact
     max_signal_age_bars: int = 2  # ignore un signal plus vieux que N bougies (évite les alertes périmées)
 
     # Notifications

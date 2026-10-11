@@ -6,9 +6,13 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import pandas as pd
+import requests
+
+from .alerts import fetch_events, regime_alerts, upcoming_alerts
 from .brief import snapshot
 from .data import INTERVAL_MINUTES
-from .messages import HELP_TEXT, format_brief, format_prices, format_signal
+from .messages import DISCLAIMER, HELP_TEXT, format_brief, format_event_alert, format_prices, format_signal
 from .news import fetch_news
 from .notify import TelegramError, get_updates
 from .strategy import Signal, latest_signal
@@ -25,6 +29,11 @@ def scan(cfg, provider, notifier, state) -> list[Signal]:
         except Exception:  # une paire en erreur ne doit pas bloquer les autres
             log.exception("Données indisponibles pour %s", symbol)
             continue
+        for text in regime_alerts(symbol, df, cfg):
+            key = f"regime|{symbol}|{df.index[-1].isoformat()}|{text}"
+            if not state.seen(key):
+                notifier.send(f"⚠️ CHANGEMENT DE MARCHÉ — {symbol} ({cfg.interval})\n{text}\n{DISCLAIMER}")
+                state.mark(key)
         sig = latest_signal(symbol, df, cfg)
         if sig is None or state.seen(sig.key):
             continue
@@ -104,6 +113,7 @@ def answer_messages(cfg, state, provider, notifier, now: datetime) -> int:
 def run_forever(cfg, provider, notifier, state, tick_seconds: int = 5) -> None:
     tz = ZoneInfo(cfg.timezone)
     last_scan = None
+    events, events_at = [], None
     log.info("Bot démarré : %s, %s, brief chaque heure à :%02d", ", ".join(cfg.symbols), cfg.interval, cfg.brief_minute)
     while True:
         now = datetime.now(tz)
@@ -122,6 +132,20 @@ def run_forever(cfg, provider, notifier, state, tick_seconds: int = 5) -> None:
             log.error("%s", exc)
         except Exception:
             log.exception("Erreur dans la boucle, nouvelle tentative au prochain tick")
+        if cfg.calendar_url and (events_at is None or time.monotonic() - events_at > 1800):
+            try:
+                events = fetch_events(cfg.calendar_url)
+            except (requests.RequestException, ValueError, KeyError):
+                log.warning("Calendrier économique indisponible")
+            events_at = time.monotonic()  # nouvelle tentative dans 30 min
+        try:
+            for ev in upcoming_alerts(events, cfg.symbols, pd.Timestamp.now(tz="UTC"), cfg.alert_minutes_before):
+                key = f"event|{ev['title']}|{ev['time'].isoformat()}"
+                if not state.seen(key):
+                    notifier.send(format_event_alert(ev, cfg))
+                    state.mark(key)
+        except TelegramError as exc:
+            log.error("%s", exc)
         try:
             answer_messages(cfg, state, provider, notifier, datetime.now(tz))
         except TelegramError as exc:

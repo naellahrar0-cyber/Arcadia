@@ -92,7 +92,11 @@ def format_brief(snapshots: list[Snapshot], signals: list[Signal], cfg: Config, 
     else:
         lines.append("Aucun signal sur la dernière bougie clôturée.")
     if news:
-        lines += ["", "Actualités :"]
+        from .alerts import headline_bias
+
+        tickers = sorted({item["ticker"] for item in news})
+        biases = ", ".join(f"{t} {headline_bias([i['title'] for i in news if i['ticker'] == t])}" for t in tickers)
+        lines += ["", f"Actualités (biais par mots-clés, indicatif) : {biases}", "Titres :"]
         for item in news:
             lines.append(f"  - [{item['ticker']}] {item['title']}")
             if item["link"]:
@@ -107,6 +111,17 @@ def format_prices(snapshots: list[Snapshot], cfg: Config, now: datetime) -> str:
         lines.append(f"• {s.symbol} : {fmt_price(s.price)} ({s.change_pct:+.2f} % sur 24 h), "
                      f"tendance {s.trend}, RSI {s.rsi:.0f}")
     return "\n".join(lines)
+
+
+def format_event_alert(ev: dict, cfg: Config) -> str:
+    local = ev["time"].tz_convert(cfg.display_timezone)
+    return "\n".join([
+        f"📅 ÉVÉNEMENT À FORT IMPACT dans moins de {cfg.alert_minutes_before} min",
+        f"{ev['country']} — {ev['title']}",
+        f"Heure (Maroc) : {local:%d/%m %H:%M}",
+        "Des mouvements rapides sont possibles autour de cette annonce.",
+        DISCLAIMER,
+    ])
 
 
 HELP_TEXT = "\n".join([
