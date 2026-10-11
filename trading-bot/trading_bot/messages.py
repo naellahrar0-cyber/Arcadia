@@ -15,7 +15,14 @@ DISCLAIMER = "Généré automatiquement à partir d'indicateurs techniques. Ce n
 def fmt_price(x: float) -> str:
     if math.isnan(x):
         return "n/a"
-    text = f"{x:,.2f}" if abs(x) >= 1 else f"{x:.6f}"
+    if abs(x) >= 1000:
+        text = f"{x:,.2f}"
+    elif abs(x) >= 100:
+        text = f"{x:.3f}"
+    elif abs(x) >= 1:
+        text = f"{x:.5f}"  # ex. EURUSD 1.12345
+    else:
+        text = f"{x:.6f}"
     return text.replace(",", " ")
 
 

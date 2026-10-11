@@ -124,6 +124,14 @@ def test_csv_provider(tmp_path):
     assert len(df) == 10 and list(df.columns) == ["open", "high", "low", "close", "volume"]
 
 
+def test_fmt_price_keeps_forex_precision():
+    from trading_bot.messages import fmt_price
+
+    assert fmt_price(1.12345) == "1.12345"
+    assert fmt_price(158.28) == "158.280"
+    assert fmt_price(67432.0) == "67 432.00"
+
+
 def test_format_signal_shows_levels_and_percentages():
     sig = Signal("BTCUSDT", "1h", pd.Timestamp("2026-01-01 12:00", tz="UTC"), "LONG", 100.0, 98.0, 104.0)
     text = format_signal(sig, Config())
