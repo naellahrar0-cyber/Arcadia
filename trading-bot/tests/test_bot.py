@@ -70,6 +70,15 @@ def test_position_size_risks_fixed_amount():
     assert notional == pytest.approx(200)
 
 
+def test_target_sizing_gains_target_at_take_profit():
+    from trading_bot.risk import target_position_size
+
+    qty, notional, loss = target_position_size(1.0, entry=100.0, take_profit=104.0, stop=98.0)
+    assert qty * 4.0 == pytest.approx(1.0)  # gain au take-profit = cible
+    assert loss == pytest.approx(0.5)  # perte au stop = cible / R:R (2)
+    assert notional == pytest.approx(qty * 100.0)
+
+
 def test_close_trade_is_fee_aware():
     ts = pd.Timestamp("2026-01-01", tz="UTC")
     pos = {"i": 0, "time": ts, "side": LONG, "entry": 100.0, "stop": 95.0, "tp": 110.0}

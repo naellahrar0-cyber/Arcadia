@@ -37,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--provider", choices=["binance", "yahoo", "csv"], help="Source de données (défaut : config)")
     parser.add_argument("--symbols", help="Remplace la liste de paires, séparées par des virgules (ex. EURUSD=X,GBPUSD=X)")
     parser.add_argument("--fee", type=float, help="Frais par côté pour le backtest (ex. 0.0002 = 0,02 %%)")
+    parser.add_argument("--target", type=float, help="Gain visé par trade, en unités de ta devise (ex. 1)")
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("scan", help="Cherche les signaux sur la dernière bougie clôturée et notifie")
@@ -56,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg = Config()
     if args.provider:
         cfg.provider = args.provider
+    if args.target is not None:
+        cfg.target_profit = args.target
     if args.fee is not None:
         cfg.fee_per_side = args.fee
     if args.symbols:

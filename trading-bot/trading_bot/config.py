@@ -28,6 +28,7 @@ class Config:
     # Gestion du risque
     capital: float = 1000.0
     risk_per_trade: float = 0.01  # 1 % du capital risqué par trade
+    target_profit: float | None = None  # si défini : taille calculée pour gagner ce montant au take-profit
     fee_per_side: float = 0.001  # frais par côté (0,1 %), utilisés par le backtest
     max_hold_bars: int = 48  # sortie au bout de N bougies si ni SL ni TP
 
