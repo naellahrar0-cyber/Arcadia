@@ -393,6 +393,24 @@ def test_fetch_events_keeps_high_impact_only(monkeypatch):
     assert len(events) == 1 and events[0]["time"] == pd.Timestamp("2026-10-12 18:30", tz="UTC")
 
 
+def test_ai_analysis_off_without_key_and_parses_reply(monkeypatch):
+    from trading_bot import ai
+
+    news = [{"ticker": "EURUSD=X", "title": "ECB holds rates", "link": "", "published": ""}]
+    assert ai.analyze_news(news, Config(anthropic_api_key=None)) is None
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"content": [{"type": "text", "text": "EURUSD : neutre, décision attendue."}]}
+
+    monkeypatch.setattr(ai.requests, "post", lambda *a, **k: Resp())
+    out = ai.analyze_news(news, Config(anthropic_api_key="k"))
+    assert out == "EURUSD : neutre, décision attendue."
+
+
 def test_state_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     State(path).mark("k1")

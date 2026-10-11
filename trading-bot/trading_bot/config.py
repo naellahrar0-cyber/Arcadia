@@ -43,6 +43,8 @@ class Config:
     ])  # tickers Yahoo des actualités
     news_per_ticker: int = 2
     calendar_url: str | None = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"  # calendrier JSON (None = désactivé)
+    anthropic_api_key: str | None = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
+    ai_model: str = "claude-haiku-5-5"  # modèle pour l'analyse des actualités
     alert_minutes_before: int = 30  # alerte avant un événement à fort impact
     max_signal_age_bars: int = 2  # ignore un signal plus vieux que N bougies (évite les alertes périmées)
 

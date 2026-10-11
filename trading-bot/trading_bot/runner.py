@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 
+from .ai import analyze_news
 from .alerts import fetch_events, regime_alerts, upcoming_alerts
 from .brief import snapshot
 from .data import INTERVAL_MINUTES
@@ -68,6 +69,9 @@ def morning_brief(cfg, provider, notifier, now: datetime) -> str:
     snapshots, signals, failed = _snapshots(cfg, provider)
     news = fetch_news(cfg.news_tickers, cfg.news_per_ticker)
     text = format_brief(snapshots, signals, cfg, now, failed, news)
+    analysis = analyze_news(news, cfg)
+    if analysis:
+        text += f"\n\n🧠 Analyse IA des actualités (à vérifier) :\n{analysis}"
     notifier.send(text)
     return text
 
