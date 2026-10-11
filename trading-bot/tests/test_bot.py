@@ -411,6 +411,24 @@ def test_ai_analysis_off_without_key_and_parses_reply(monkeypatch):
     assert out == "EURUSD : neutre, décision attendue."
 
 
+def test_run_command_says_no_entry_when_no_signal(tmp_path, monkeypatch):
+    from trading_bot import runner
+
+    cfg = Config(symbols=["TEST"], telegram_token="t", telegram_chat_id="42",
+                 state_file=str(tmp_path / "s.json"), log_file=str(tmp_path / "l.log"))
+    updates = [{"update_id": 1, "message": {"chat": {"id": 42}, "text": "/run"}}]
+    monkeypatch.setattr(runner, "get_updates", lambda token, offset=None, timeout=20: updates)
+    monkeypatch.setattr(runner, "latest_signal", lambda s, df, c: None)
+
+    class Provider:
+        def fetch(self, symbol, interval, limit):
+            return make_ohlc(n=300)
+
+    notifier = FakeNotifier()
+    runner.answer_messages(cfg, State(cfg.state_file), Provider(), notifier, pd.Timestamp.now(tz="UTC").to_pydatetime())
+    assert "Pas d'entrée maintenant" in notifier.messages[0]
+
+
 def test_state_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     State(path).mark("k1")

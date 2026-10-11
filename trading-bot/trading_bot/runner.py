@@ -13,7 +13,7 @@ from .ai import analyze_news
 from .alerts import fetch_events, regime_alerts, upcoming_alerts
 from .brief import snapshot
 from .data import INTERVAL_MINUTES
-from .messages import DISCLAIMER, HELP_TEXT, format_brief, format_event_alert, format_prices, format_signal
+from .messages import DISCLAIMER, HELP_TEXT, fmt_price, format_brief, format_event_alert, format_prices, format_signal
 from .news import fetch_news
 from .notify import TelegramError, get_updates
 from .strategy import Signal, latest_signal
@@ -89,6 +89,27 @@ def status_text(cfg, state, now: datetime) -> str:
     ])
 
 
+def run_now_text(cfg, provider, now: datetime) -> str:
+    """Réponse immédiate à /run : achat, vente ou pas d'entrée, avec les niveaux."""
+    _, signals, failed = _snapshots(cfg, provider)
+    max_age = timedelta(minutes=INTERVAL_MINUTES[cfg.interval] * cfg.max_signal_age_bars)
+    fresh = [s for s in signals if now - s.time.to_pydatetime() <= max_age]
+    local = now.astimezone(ZoneInfo(cfg.display_timezone))
+    lines = [f"🔎 Analyse maintenant — {local:%d/%m %H:%M} (heure du Maroc)", ""]
+    if fresh:
+        for sig in fresh:
+            label = "ACHAT (BUY)" if sig.side == "LONG" else "VENTE (SELL)"
+            lines.append(f"➡️ {label} — {sig.symbol}")
+            lines.append(f"   Entrée {fmt_price(sig.entry)} · SL {fmt_price(sig.stop)} (-{sig.risk_pct:.2f} %) · "
+                         f"TP {fmt_price(sig.take_profit)} (+{sig.reward_pct:.2f} %) · R/R 1:{sig.rr:.1f}")
+    else:
+        lines.append("⏸ Pas d'entrée maintenant : aucun signal sur la dernière bougie clôturée.")
+    if failed:
+        lines.append(f"⚠️ Données indisponibles : {', '.join(failed)}")
+    lines += ["", DISCLAIMER]
+    return "\n".join(lines)
+
+
 def answer_messages(cfg, state, provider, notifier, now: datetime) -> int:
     """Répond aux messages envoyés au bot. Seul le chat configuré reçoit une réponse."""
     if not cfg.telegram_token or not cfg.telegram_chat_id:
@@ -102,6 +123,8 @@ def answer_messages(cfg, state, provider, notifier, now: datetime) -> int:
         command = (msg.get("text") or "").strip().lower().split("@")[0]
         if command in ("/brief", "brief"):
             morning_brief(cfg, provider, notifier, now)
+        elif command in ("/run", "run"):
+            notifier.send(run_now_text(cfg, provider, now))
         elif command in ("/prix", "prix", "/prices"):
             snapshots, _, _ = _snapshots(cfg, provider)
             notifier.send(format_prices(snapshots, cfg, now))
