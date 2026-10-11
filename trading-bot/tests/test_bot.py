@@ -279,7 +279,7 @@ def test_bot_answers_only_configured_chat(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(runner, "get_updates", lambda token, offset=None, timeout=20: updates)
     notifier, state = FakeNotifier(), State(cfg.state_file)
-    assert runner.answer_messages(cfg, state, notifier, pd.Timestamp.now(tz="UTC").to_pydatetime()) == 1
+    assert runner.answer_messages(cfg, state, None, notifier, pd.Timestamp.now(tz="UTC").to_pydatetime()) == 1
     assert len(notifier.messages) == 1 and "Bot actif" in notifier.messages[0]
     assert State(cfg.state_file).data["update_offset"] == 12
 
@@ -295,6 +295,47 @@ def test_telegram_error_never_shows_token(monkeypatch):
     with pytest.raises(notify.TelegramError) as err:
         notify.telegram_call("123:SECRETTOKEN", "sendMessage", chat_id=1, text="x")
     assert "SECRETTOKEN" not in str(err.value)
+
+
+class _RSSResponse:
+    content = b"""<?xml version="1.0"?><rss><channel>
+      <item><title>Euro rises on ECB hopes</title><link>https://x/1</link></item>
+      <item><title>Euro rises on ECB hopes</title><link>https://x/dup</link></item>
+      <item><title>Dollar slips</title><link>https://x/2</link></item>
+      <item><title>Third story</title><link>https://x/3</link></item>
+    </channel></rss>"""
+
+    def raise_for_status(self):
+        pass
+
+
+def test_news_parses_rss_and_dedupes(monkeypatch):
+    from trading_bot import news
+
+    monkeypatch.setattr(news.requests, "get", lambda *a, **k: _RSSResponse())
+    items = news.fetch_news(["EURUSD=X"], per_ticker=2)
+    assert [i["title"] for i in items] == ["Euro rises on ECB hopes", "Dollar slips"]
+    assert items[0]["ticker"] == "EURUSD=X" and items[0]["link"] == "https://x/1"
+
+
+def test_brief_command_includes_news(tmp_path, monkeypatch):
+    from trading_bot import runner
+
+    cfg = Config(symbols=["TEST"], telegram_token="t", telegram_chat_id="42",
+                 state_file=str(tmp_path / "s.json"), log_file=str(tmp_path / "l.log"))
+    updates = [{"update_id": 1, "message": {"chat": {"id": 42}, "text": "/brief"}}]
+    monkeypatch.setattr(runner, "get_updates", lambda token, offset=None, timeout=20: updates)
+    monkeypatch.setattr(runner, "fetch_news", lambda tickers, n: [
+        {"ticker": "EURUSD=X", "title": "ECB headline", "link": "", "published": ""}])
+
+    class Provider:
+        def fetch(self, symbol, interval, limit):
+            return make_ohlc(n=300)
+
+    notifier = FakeNotifier()
+    runner.answer_messages(cfg, State(cfg.state_file), Provider(), notifier, pd.Timestamp.now(tz="UTC").to_pydatetime())
+    assert len(notifier.messages) == 1
+    assert "Brief marché" in notifier.messages[0] and "ECB headline" in notifier.messages[0]
 
 
 def test_state_roundtrip(tmp_path):

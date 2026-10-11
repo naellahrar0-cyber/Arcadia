@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -69,7 +70,7 @@ def format_signal(sig: Signal, cfg: Config) -> str:
 
 
 def format_brief(snapshots: list[Snapshot], signals: list[Signal], cfg: Config, now: datetime,
-                 failed: list[str] | None = None) -> str:
+                 failed: list[str] | None = None, news: list[dict] | None = None) -> str:
     lines = [f"☀️ Brief marché — {now:%d/%m/%Y %H:%M} ({cfg.timezone})", "", "Vue d'ensemble"]
     if failed:
         lines.append(f"⚠️ Données indisponibles : {', '.join(failed)}")
@@ -90,5 +91,30 @@ def format_brief(snapshots: list[Snapshot], signals: list[Signal], cfg: Config, 
             )
     else:
         lines.append("Aucun signal sur la dernière bougie clôturée.")
+    if news:
+        lines += ["", "Actualités :"]
+        for item in news:
+            lines.append(f"  - [{item['ticker']}] {item['title']}")
+            if item["link"]:
+                lines.append(f"    {item['link']}")
     lines += ["", f"ℹ️ {DISCLAIMER}"]
     return "\n".join(lines)
+
+
+def format_prices(snapshots: list[Snapshot], cfg: Config, now: datetime) -> str:
+    lines = [f"💹 Prix — {now.astimezone(ZoneInfo(cfg.display_timezone)):%d/%m %H:%M} (heure du Maroc)", ""]
+    for s in snapshots:
+        lines.append(f"• {s.symbol} : {fmt_price(s.price)} ({s.change_pct:+.2f} % sur 24 h), "
+                     f"tendance {s.trend}, RSI {s.rsi:.0f}")
+    return "\n".join(lines)
+
+
+HELP_TEXT = "\n".join([
+    "🤖 Commandes :",
+    "/brief : brief complet maintenant (prix, signaux, actualités)",
+    "/prix : prix et tendance des paires suivies",
+    "/status : état du bot et dernier scan",
+    "/aide : cette liste",
+    "",
+    "Le brief arrive aussi automatiquement chaque heure, et les signaux « ENTRÉE EN POSITION » dès qu'ils apparaissent.",
+])

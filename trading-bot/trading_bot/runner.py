@@ -1,4 +1,4 @@
-"""Orchestration : scan des signaux, brief matinal et boucle continue."""
+"""Orchestration : scans, brief horaire, réponses aux messages Telegram et boucle continue."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 from .brief import snapshot
 from .data import INTERVAL_MINUTES
-from .messages import format_brief, format_signal
+from .messages import HELP_TEXT, format_brief, format_prices, format_signal
+from .news import fetch_news
 from .notify import TelegramError, get_updates
 from .strategy import Signal, latest_signal
 
@@ -37,7 +38,7 @@ def scan(cfg, provider, notifier, state) -> list[Signal]:
     return sent
 
 
-def morning_brief(cfg, provider, notifier, now: datetime) -> str:
+def _snapshots(cfg, provider):
     snapshots, signals, failed = [], [], []
     for symbol in cfg.symbols:
         try:
@@ -50,7 +51,14 @@ def morning_brief(cfg, provider, notifier, now: datetime) -> str:
         sig = latest_signal(symbol, df, cfg)
         if sig is not None:
             signals.append(sig)
-    text = format_brief(snapshots, signals, cfg, now, failed)
+    return snapshots, signals, failed
+
+
+def morning_brief(cfg, provider, notifier, now: datetime) -> str:
+    """Brief complet : prix, tendances, signaux actifs et actualités."""
+    snapshots, signals, failed = _snapshots(cfg, provider)
+    news = fetch_news(cfg.news_tickers, cfg.news_per_ticker)
+    text = format_brief(snapshots, signals, cfg, now, failed, news)
     notifier.send(text)
     return text
 
@@ -59,26 +67,35 @@ def status_text(cfg, state, now: datetime) -> str:
     local = now.astimezone(ZoneInfo(cfg.display_timezone))
     return "\n".join([
         "🤖 Bot actif",
-        f"Heure ({cfg.display_timezone.split('/')[-1]}) : {local:%d/%m/%Y %H:%M}",
+        f"Heure (Maroc) : {local:%d/%m/%Y %H:%M}",
         f"Paires : {', '.join(cfg.symbols)} ({cfg.interval})",
         f"Dernier scan : {state.data.get('last_scan') or 'pas encore'}",
-        f"Brief : chaque jour à {cfg.brief_time} ({cfg.timezone})",
+        f"Brief : chaque heure à :{cfg.brief_minute:02d} (heure du Maroc)",
         "",
-        "Les signaux « ENTRÉE EN POSITION » (ACHAT ou VENTE) arrivent ici.",
+        "Tape /aide pour la liste des commandes.",
     ])
 
 
-def answer_messages(cfg, state, notifier, now: datetime) -> int:
+def answer_messages(cfg, state, provider, notifier, now: datetime) -> int:
     """Répond aux messages envoyés au bot. Seul le chat configuré reçoit une réponse."""
     if not cfg.telegram_token or not cfg.telegram_chat_id:
         return 0
     answered = 0
     for update in get_updates(cfg.telegram_token, offset=state.data.get("update_offset")):
         state.data["update_offset"] = update["update_id"] + 1
-        chat_id = str(((update.get("message") or {}).get("chat") or {}).get("id", ""))
-        if chat_id != str(cfg.telegram_chat_id):
+        msg = update.get("message") or {}
+        if str((msg.get("chat") or {}).get("id", "")) != str(cfg.telegram_chat_id):
             continue  # message d'un inconnu : ignoré
-        notifier.send(status_text(cfg, state, now))
+        command = (msg.get("text") or "").strip().lower().split("@")[0]
+        if command in ("/brief", "brief"):
+            morning_brief(cfg, provider, notifier, now)
+        elif command in ("/prix", "prix", "/prices"):
+            snapshots, _, _ = _snapshots(cfg, provider)
+            notifier.send(format_prices(snapshots, cfg, now))
+        elif command in ("/aide", "aide", "/help", "help", "/start"):
+            notifier.send(HELP_TEXT)
+        else:
+            notifier.send(status_text(cfg, state, now))
         answered += 1
     state.save()
     return answered
@@ -87,26 +104,26 @@ def answer_messages(cfg, state, notifier, now: datetime) -> int:
 def run_forever(cfg, provider, notifier, state, tick_seconds: int = 5) -> None:
     tz = ZoneInfo(cfg.timezone)
     last_scan = None
-    log.info("Bot démarré : %s, %s, brief à %s", ", ".join(cfg.symbols), cfg.interval, cfg.brief_time)
+    log.info("Bot démarré : %s, %s, brief chaque heure à :%02d", ", ".join(cfg.symbols), cfg.interval, cfg.brief_minute)
     while True:
         now = datetime.now(tz)
-        today = now.date().isoformat()
+        hour_key = now.strftime("%Y-%m-%d %H")
         try:
-            if now.strftime("%H:%M") >= cfg.brief_time and state.data.get("last_brief") != today:
+            if now.minute >= cfg.brief_minute and state.data.get("last_brief") != hour_key:
                 morning_brief(cfg, provider, notifier, now)
-                state.data["last_brief"] = today
+                state.data["last_brief"] = hour_key
                 state.save()
             if last_scan is None or time.monotonic() - last_scan >= cfg.scan_every_minutes * 60:
                 scan(cfg, provider, notifier, state)
                 last_scan = time.monotonic()
-                state.data["last_scan"] = now.astimezone(ZoneInfo(cfg.display_timezone)).strftime("%d/%m %H:%M")
+                state.data["last_scan"] = now.strftime("%d/%m %H:%M")
                 state.save()
         except TelegramError as exc:  # message sans token, pas de trace complète
             log.error("%s", exc)
         except Exception:
             log.exception("Erreur dans la boucle, nouvelle tentative au prochain tick")
         try:
-            answer_messages(cfg, state, notifier, datetime.now(tz))
+            answer_messages(cfg, state, provider, notifier, datetime.now(tz))
         except TelegramError as exc:
             log.error("%s", exc)
         time.sleep(tick_seconds)

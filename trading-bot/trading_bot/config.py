@@ -37,6 +37,11 @@ class Config:
     display_timezone: str = "Africa/Casablanca"  # heure affichée dans les messages (heure du Maroc)
     brief_time: str = "08:00"
     scan_every_minutes: int = 15
+    brief_minute: int = 0  # brief envoyé chaque heure à cette minute
+    news_tickers: list[str] = field(default_factory=lambda: [
+        "EURUSD=X", "GBPUSD=X", "USDJPY=X", "XAUUSD=X", "BTC-USD", "ETH-USD",
+    ])  # tickers Yahoo des actualités
+    news_per_ticker: int = 2
     max_signal_age_bars: int = 2  # ignore un signal plus vieux que N bougies (évite les alertes périmées)
 
     # Notifications

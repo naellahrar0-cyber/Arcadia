@@ -4,8 +4,10 @@ Bot d'**alertes** : il surveille des marchés, détecte des points d'entrée et 
 chaque signal avec **entrée, stop-loss, take-profit, % de gain/perte potentiel et
 taille de position** calculée sur ton risque. Tu places l'ordre toi-même.
 
-Chaque matin (08:00 heure du Maroc), il envoie aussi un **brief** : variation 24 h, tendance,
-RSI, volatilité, supports/résistances et signaux actifs.
+Chaque heure, il envoie un **brief** : prix, variation 24 h, tendance, RSI, volatilité,
+supports/résistances, signaux actifs et **actualités**.
+
+Tu peux lui écrire sur Telegram : `/brief` (brief maintenant), `/prix`, `/status`, `/aide`.
 
 > ⚠️ Aucun bot ne garantit un profit. Le trading à effet de levier peut faire perdre
 > plus que la mise. Commence par `backtest` puis en **compte démo / papier** avant
