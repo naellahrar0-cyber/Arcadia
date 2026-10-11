@@ -10,7 +10,7 @@ import hmac
 import json
 import logging
 import threading
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pandas as pd
@@ -48,7 +48,7 @@ def normalize_interval(value: str) -> str:
 
 def _parse_time(value) -> pd.Timestamp:
     if value is None:
-        return pd.Timestamp(datetime.now(UTC))
+        return pd.Timestamp(datetime.now(timezone.utc))
     if isinstance(value, (int, float)):
         return pd.Timestamp(value, unit="ms", tz="UTC")
     ts = pd.Timestamp(str(value))
