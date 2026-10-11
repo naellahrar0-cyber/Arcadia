@@ -6,6 +6,8 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import requests
+
 from .backtest import backtest
 from .config import Config
 from .data import get_provider
@@ -83,7 +85,16 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "telegram-test":
         if not notifier.telegram_enabled:
             parser.error("définissez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID (voir README)")
-        notifier.send("✅ Trading bot connecté à Telegram. Les signaux et le brief arriveront ici.")
+        try:
+            notifier.send("✅ Trading bot connecté à Telegram. Les signaux et le brief arriveront ici.")
+        except requests.RequestException as exc:
+            # Ne pas afficher l'exception complète : son URL contient le token
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status == 404:
+                parser.error("Telegram ne reconnaît pas le token. Vérifie-le (ou révoque-le et refais-en un).")
+            if status == 400:
+                parser.error("Telegram refuse le chat ID. Vérifie-le : il doit venir de getUpdates.")
+            parser.error(f"Envoi impossible vers Telegram ({type(exc).__name__}). Vérifie la connexion internet.")
         print("Message de test envoyé.")
     elif args.command == "brief":
         morning_brief(cfg, provider, notifier, datetime.now(ZoneInfo(cfg.timezone)))
