@@ -11,7 +11,7 @@ import requests
 from .backtest import backtest
 from .config import Config
 from .data import get_provider
-from .notify import Notifier
+from .notify import Notifier, TelegramError
 from .runner import morning_brief, run_forever, scan
 from .state import State
 
@@ -111,14 +111,8 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("définissez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID (voir README)")
         try:
             notifier.send("✅ Test Telegram du bot : si tu lis ce message, la configuration fonctionne.")
-        except requests.RequestException as exc:
-            # Ne pas afficher l'exception complète : son URL contient le token
-            status = getattr(getattr(exc, "response", None), "status_code", None)
-            if status == 404:
-                parser.error("Telegram ne reconnaît pas le token. Vérifie-le (ou révoque-le et refais-en un).")
-            if status == 400:
-                parser.error("Telegram refuse le chat ID. Vérifie-le : il doit venir de getUpdates.")
-            parser.error(f"Envoi impossible vers Telegram ({type(exc).__name__}). Vérifie la connexion internet.")
+        except TelegramError as exc:
+            parser.error(f"{exc}. Vérifie le token et le chat ID.")
         print("Message de test envoyé.")
     elif args.command == "brief":
         morning_brief(cfg, provider, notifier, datetime.now(ZoneInfo(cfg.timezone)))

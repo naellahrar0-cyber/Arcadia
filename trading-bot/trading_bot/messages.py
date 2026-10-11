@@ -4,10 +4,14 @@ from __future__ import annotations
 import math
 from datetime import datetime
 
+import pandas as pd
+
 from .brief import Snapshot
 from .config import Config
+from .data import INTERVAL_MINUTES
 from .risk import position_size, target_position_size
 from .strategy import Signal
+
 
 DISCLAIMER = "Généré automatiquement à partir d'indicateurs techniques. Ce n'est pas un conseil financier."
 
@@ -40,10 +44,17 @@ def format_signal(sig: Signal, cfg: Config) -> str:
             f"Taille       : {qty:.4f} unités ≈ {fmt_price(notional)} de valeur",
             f"Risque       : {loss:.2f} ({cfg.risk_per_trade * 100:.1f} % de {fmt_price(cfg.capital)})",
         ]
-    icon = "🟢" if sig.side == "LONG" else "🔴"
+
+    if sig.side == "LONG":
+        icon, label = "🟢", "ACHAT (BUY)"
+    else:
+        icon, label = "🔴", "VENTE (SELL)"
+    # Le signal part à la clôture de la bougie : heure de fin de bougie, affichée à l'heure locale choisie
+    close_time = sig.time + pd.Timedelta(minutes=INTERVAL_MINUTES[sig.interval])
+    local = close_time.tz_convert(cfg.display_timezone)
     return "\n".join([
-        f"{icon} SIGNAL {sig.side} — {sig.symbol} ({sig.interval})",
-        f"Bougie clôturée : {sig.time:%Y-%m-%d %H:%M} UTC",
+        f"{icon} ENTRÉE EN POSITION — {label} — {sig.symbol} ({sig.interval})",
+        f"Heure ({cfg.display_timezone.split('/')[-1]}) : {local:%d/%m/%Y %H:%M}",
         "",
         f"Entrée       : {fmt_price(sig.entry)}",
         f"Stop-loss    : {fmt_price(sig.stop)}  (-{sig.risk_pct:.2f} %)",

@@ -135,7 +135,7 @@ def test_fmt_price_keeps_forex_precision():
 def test_format_signal_shows_levels_and_percentages():
     sig = Signal("BTCUSDT", "1h", pd.Timestamp("2026-01-01 12:00", tz="UTC"), "LONG", 100.0, 98.0, 104.0)
     text = format_signal(sig, Config())
-    assert "SIGNAL LONG — BTCUSDT" in text
+    assert "ENTRÉE EN POSITION — ACHAT (BUY) — BTCUSDT" in text
     assert "(-2.00 %)" in text and "(+4.00 %)" in text
     assert "1 : 2.0" in text
 
@@ -237,7 +237,7 @@ def test_webhook_http_end_to_end(tmp_path):
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(urllib.request.Request(url, data=body.replace(b"good", b"nope")), timeout=5)
         assert err.value.code == 401
-        assert len(notifier.messages) == 1 and "SIGNAL SHORT — BTCUSDT (1h)" in notifier.messages[0]
+        assert len(notifier.messages) == 1 and "VENTE (SELL) — BTCUSDT (1h)" in notifier.messages[0]
     finally:
         server.shutdown()
         server.server_close()
@@ -257,6 +257,44 @@ def test_scan_ignores_stale_signal(tmp_path, monkeypatch):
     notifier = FakeNotifier()
     assert scan(cfg, Provider(), notifier, State(cfg.state_file)) == []
     assert notifier.messages == []
+
+
+def test_entry_message_has_side_and_morocco_time():
+    sig_long = Signal("EURUSD=X", "1h", pd.Timestamp("2026-10-11 14:00", tz="UTC"), "LONG", 1.1, 1.097, 1.106)
+    sig_short = Signal("EURUSD=X", "1h", pd.Timestamp("2026-10-11 14:00", tz="UTC"), "SHORT", 1.1, 1.103, 1.094)
+    text_long, text_short = format_signal(sig_long, Config()), format_signal(sig_short, Config())
+    assert "ACHAT (BUY)" in text_long and "VENTE (SELL)" in text_short
+    # L'heure affichée = fin de bougie (15:00 UTC) convertie dans le fuseau Africa/Casablanca
+    expected = pd.Timestamp("2026-10-11 15:00", tz="UTC").tz_convert("Africa/Casablanca")
+    assert f"Heure (Casablanca) : {expected:%d/%m/%Y %H:%M}" in text_long
+
+
+def test_bot_answers_only_configured_chat(tmp_path, monkeypatch):
+    from trading_bot import runner
+
+    cfg = Config(telegram_token="t", telegram_chat_id="42", state_file=str(tmp_path / "s.json"))
+    updates = [
+        {"update_id": 10, "message": {"chat": {"id": 999}, "text": "hello"}},  # inconnu
+        {"update_id": 11, "message": {"chat": {"id": 42}, "text": "/status"}},  # toi
+    ]
+    monkeypatch.setattr(runner, "get_updates", lambda token, offset=None, timeout=20: updates)
+    notifier, state = FakeNotifier(), State(cfg.state_file)
+    assert runner.answer_messages(cfg, state, notifier, pd.Timestamp.now(tz="UTC").to_pydatetime()) == 1
+    assert len(notifier.messages) == 1 and "Bot actif" in notifier.messages[0]
+    assert State(cfg.state_file).data["update_offset"] == 12
+
+
+def test_telegram_error_never_shows_token(monkeypatch):
+    import requests
+    from trading_bot import notify
+
+    def boom(url, **kwargs):
+        raise requests.ConnectionError(f"failed for {url}")
+
+    monkeypatch.setattr(notify.requests, "post", boom)
+    with pytest.raises(notify.TelegramError) as err:
+        notify.telegram_call("123:SECRETTOKEN", "sendMessage", chat_id=1, text="x")
+    assert "SECRETTOKEN" not in str(err.value)
 
 
 def test_state_roundtrip(tmp_path):

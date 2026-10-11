@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from .brief import snapshot
 from .data import INTERVAL_MINUTES
 from .messages import format_brief, format_signal
+from .notify import TelegramError, get_updates
 from .strategy import Signal, latest_signal
 
 log = logging.getLogger(__name__)
@@ -54,7 +55,36 @@ def morning_brief(cfg, provider, notifier, now: datetime) -> str:
     return text
 
 
-def run_forever(cfg, provider, notifier, state, tick_seconds: int = 30) -> None:
+def status_text(cfg, state, now: datetime) -> str:
+    local = now.astimezone(ZoneInfo(cfg.display_timezone))
+    return "\n".join([
+        "🤖 Bot actif",
+        f"Heure ({cfg.display_timezone.split('/')[-1]}) : {local:%d/%m/%Y %H:%M}",
+        f"Paires : {', '.join(cfg.symbols)} ({cfg.interval})",
+        f"Dernier scan : {state.data.get('last_scan') or 'pas encore'}",
+        f"Brief : chaque jour à {cfg.brief_time} ({cfg.timezone})",
+        "",
+        "Les signaux « ENTRÉE EN POSITION » (ACHAT ou VENTE) arrivent ici.",
+    ])
+
+
+def answer_messages(cfg, state, notifier, now: datetime) -> int:
+    """Répond aux messages envoyés au bot. Seul le chat configuré reçoit une réponse."""
+    if not cfg.telegram_token or not cfg.telegram_chat_id:
+        return 0
+    answered = 0
+    for update in get_updates(cfg.telegram_token, offset=state.data.get("update_offset")):
+        state.data["update_offset"] = update["update_id"] + 1
+        chat_id = str(((update.get("message") or {}).get("chat") or {}).get("id", ""))
+        if chat_id != str(cfg.telegram_chat_id):
+            continue  # message d'un inconnu : ignoré
+        notifier.send(status_text(cfg, state, now))
+        answered += 1
+    state.save()
+    return answered
+
+
+def run_forever(cfg, provider, notifier, state, tick_seconds: int = 5) -> None:
     tz = ZoneInfo(cfg.timezone)
     last_scan = None
     log.info("Bot démarré : %s, %s, brief à %s", ", ".join(cfg.symbols), cfg.interval, cfg.brief_time)
@@ -69,6 +99,14 @@ def run_forever(cfg, provider, notifier, state, tick_seconds: int = 30) -> None:
             if last_scan is None or time.monotonic() - last_scan >= cfg.scan_every_minutes * 60:
                 scan(cfg, provider, notifier, state)
                 last_scan = time.monotonic()
+                state.data["last_scan"] = now.astimezone(ZoneInfo(cfg.display_timezone)).strftime("%d/%m %H:%M")
+                state.save()
+        except TelegramError as exc:  # message sans token, pas de trace complète
+            log.error("%s", exc)
         except Exception:
             log.exception("Erreur dans la boucle, nouvelle tentative au prochain tick")
+        try:
+            answer_messages(cfg, state, notifier, datetime.now(tz))
+        except TelegramError as exc:
+            log.error("%s", exc)
         time.sleep(tick_seconds)
