@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         if not notifier.telegram_enabled:
             parser.error("définissez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID (voir README)")
         try:
-            notifier.send("✅ Trading bot connecté à Telegram. Les signaux et le brief arriveront ici.")
+            notifier.send("✅ Test Telegram du bot : si tu lis ce message, la configuration fonctionne.")
         except requests.RequestException as exc:
             # Ne pas afficher l'exception complète : son URL contient le token
             status = getattr(getattr(exc, "response", None), "status_code", None)
