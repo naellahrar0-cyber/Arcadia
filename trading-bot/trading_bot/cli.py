@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("scan", help="Cherche les signaux sur la dernière bougie clôturée et notifie")
     sub.add_parser("brief", help="Envoie le brief du marché maintenant")
     sub.add_parser("telegram-test", help="Envoie un message de test pour valider Telegram")
+    sub.add_parser("telegram-chatid", help="Affiche ton chat ID (après avoir envoyé un message au bot)")
     sub.add_parser("run", help="Boucle continue : brief quotidien + scans réguliers")
     bt = sub.add_parser("backtest", help="Teste la stratégie sur l'historique")
     bt.add_argument("--symbol", help="Une seule paire (défaut : toutes celles de la config)")
@@ -82,6 +83,23 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "scan":
         sent = scan(cfg, provider, notifier, state)
         print(f"{len(sent)} nouveau(x) signal(aux).")
+    elif args.command == "telegram-chatid":
+        if not notifier.token:
+            parser.error("définissez TELEGRAM_BOT_TOKEN")
+        try:
+            resp = requests.get(f"https://api.telegram.org/bot{notifier.token}/getUpdates", timeout=15)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            parser.error(f"Impossible de lire les messages du bot ({type(exc).__name__}). Vérifie le token.")
+        chats = {}
+        for update in resp.json().get("result", []):
+            chat = (update.get("message") or update.get("my_chat_member") or {}).get("chat", {})
+            if chat.get("id"):
+                chats[chat["id"]] = chat.get("first_name") or chat.get("title") or chat.get("username", "")
+        if not chats:
+            parser.error("Aucun message reçu. Ouvre le bot dans Telegram, appuie sur Démarrer, envoie 'hello', puis relance.")
+        for chat_id, name in chats.items():
+            print(f"Chat ID : {chat_id}   ({name})")
     elif args.command == "telegram-test":
         if not notifier.telegram_enabled:
             parser.error("définissez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID (voir README)")
