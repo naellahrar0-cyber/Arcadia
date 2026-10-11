@@ -38,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("scan", help="Cherche les signaux sur la dernière bougie clôturée et notifie")
     sub.add_parser("brief", help="Envoie le brief du marché maintenant")
+    sub.add_parser("telegram-test", help="Envoie un message de test pour valider Telegram")
     sub.add_parser("run", help="Boucle continue : brief quotidien + scans réguliers")
     bt = sub.add_parser("backtest", help="Teste la stratégie sur l'historique")
     bt.add_argument("--symbol", help="Une seule paire (défaut : toutes celles de la config)")
@@ -79,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "scan":
         sent = scan(cfg, provider, notifier, state)
         print(f"{len(sent)} nouveau(x) signal(aux).")
+    elif args.command == "telegram-test":
+        if not notifier.telegram_enabled:
+            parser.error("définissez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID (voir README)")
+        notifier.send("✅ Trading bot connecté à Telegram. Les signaux et le brief arriveront ici.")
+        print("Message de test envoyé.")
     elif args.command == "brief":
         morning_brief(cfg, provider, notifier, datetime.now(ZoneInfo(cfg.timezone)))
     elif args.command == "run":
