@@ -77,9 +77,16 @@ def format_brief(snapshots: list[Snapshot], signals: list[Signal], cfg: Config, 
     for s in snapshots:
         lines.append(
             f"• {s.symbol} : {fmt_price(s.price)} ({s.change_pct:+.2f} % sur 24 h) — "
-            f"tendance {s.trend}, RSI {s.rsi:.0f}, volatilité {s.atr_pct:.2f} %"
+            f"tendance {s.trend}, RSI {s.rsi:.0f}, amplitude moyenne {s.atr_pct:.2f} % par bougie"
         )
-        lines.append(f"   Support {fmt_price(s.support)} · Résistance {fmt_price(s.resistance)}")
+        if s.price < s.support:
+            position = "sous le plus bas récent (cassure baissière)"
+        elif s.price > s.resistance:
+            position = "au-dessus du plus haut récent (cassure haussière)"
+        else:
+            position = "dans la fourchette récente"
+        lines.append(f"   Plus bas 20 bougies {fmt_price(s.support)} · Plus haut 20 bougies "
+                     f"{fmt_price(s.resistance)} — prix {position}")
 
     lines.append("")
     if signals:
@@ -95,8 +102,10 @@ def format_brief(snapshots: list[Snapshot], signals: list[Signal], cfg: Config, 
         from .alerts import headline_bias
 
         tickers = sorted({item["ticker"] for item in news})
-        biases = ", ".join(f"{t} {headline_bias([i['title'] for i in news if i['ticker'] == t])}" for t in tickers)
-        lines += ["", f"Actualités (biais par mots-clés, indicatif) : {biases}", "Titres :"]
+        biases = [f"{t} {headline_bias([i['title'] for i in news if i['ticker'] == t])}" for t in tickers]
+        biases = [b for b in biases if not b.endswith("neutre")]
+        summary = ", ".join(biases) if biases else "aucun biais net"
+        lines += ["", f"Actualités — biais par mots-clés (indicatif) : {summary}", "Titres :"]
         for item in news:
             lines.append(f"  - [{item['ticker']}] {item['title']}")
             if item["link"]:

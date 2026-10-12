@@ -429,6 +429,19 @@ def test_run_command_says_no_entry_when_no_signal(tmp_path, monkeypatch):
     assert "Pas d'entrée maintenant" in notifier.messages[0]
 
 
+def test_brief_reports_position_and_clean_links():
+    from trading_bot.brief import Snapshot
+    from trading_bot.news import fetch_news  # noqa: F401  (import check)
+
+    snap = Snapshot("EURUSD=X", 1.1, 0.0, "neutre", 50.0, 0.1, 1.11, 1.13)
+    text = format_brief([snap], [], Config(), pd.Timestamp("2026-10-12 10:00").to_pydatetime())
+    assert "sous le plus bas récent" not in text and "dans la fourchette" not in text
+    assert "amplitude moyenne 0.10 % par bougie" in text
+    assert "aucun biais net" in text
+    below = Snapshot("EURUSD=X", 1.10, 0.0, "neutre", 50.0, 0.1, 1.11, 1.13)
+    assert "cassure baissière" in format_brief([below], [], Config(), pd.Timestamp("2026-10-12 10:00").to_pydatetime())
+
+
 def test_state_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     State(path).mark("k1")

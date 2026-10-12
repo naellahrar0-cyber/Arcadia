@@ -34,7 +34,7 @@ def fetch_news(tickers: list[str], per_ticker: int = 2) -> list[dict]:
             items.append({
                 "ticker": ticker,
                 "title": title,
-                "link": (item.findtext("link") or "").strip(),
+                "link": (item.findtext("link") or "").strip().split("?")[0],  # sans paramètres de suivi
                 "published": (item.findtext("pubDate") or "").strip(),
             })
     return items
