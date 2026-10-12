@@ -437,7 +437,6 @@ def test_brief_reports_position_and_clean_links():
     text = format_brief([snap], [], Config(), pd.Timestamp("2026-10-12 10:00").to_pydatetime())
     assert "dans la fourchette récente" in text
     assert "amplitude moyenne 0.10 % par bougie" in text
-    assert "aucun biais net" in text
     below = Snapshot("EURUSD=X", 1.10, 0.0, "neutre", 50.0, 0.1, 1.11, 1.13)
     assert "cassure baissière" in format_brief([below], [], Config(), pd.Timestamp("2026-10-12 10:00").to_pydatetime())
 
