@@ -10,6 +10,7 @@ import pandas as pd
 import requests
 
 from .ai import analyze_news
+from .journal import add_signal, evaluate, stats_text
 from .alerts import fetch_events, regime_alerts, upcoming_alerts
 from .brief import snapshot
 from .data import INTERVAL_MINUTES
@@ -43,6 +44,7 @@ def scan(cfg, provider, notifier, state) -> list[Signal]:
             log.info("Signal %s %s ignoré : bougie trop ancienne (%s)", sig.side, sig.symbol, sig.time)
             continue
         notifier.send(format_signal(sig, cfg))
+        add_signal(state, sig)
         state.mark(sig.key)
         sent.append(sig)
     return sent
@@ -125,6 +127,9 @@ def answer_messages(cfg, state, provider, notifier, now: datetime) -> int:
             morning_brief(cfg, provider, notifier, now)
         elif command in ("/run", "run"):
             notifier.send(run_now_text(cfg, provider, now))
+        elif command in ("/journal", "journal"):
+            evaluate(state, cfg, provider)
+            notifier.send(stats_text(state, f"{now.astimezone(ZoneInfo(cfg.display_timezone)):%d/%m %H:%M}"))
         elif command in ("/prix", "prix", "/prices"):
             snapshots, _, _ = _snapshots(cfg, provider)
             notifier.send(format_prices(snapshots, cfg, now))
@@ -154,6 +159,7 @@ def run_forever(cfg, provider, notifier, state, tick_seconds: int = 5) -> None:
                 scan(cfg, provider, notifier, state)
                 last_scan = time.monotonic()
                 state.data["last_scan"] = now.strftime("%d/%m %H:%M")
+                evaluate(state, cfg, provider)
                 state.save()
         except TelegramError as exc:  # message sans token, pas de trace complète
             log.error("%s", exc)

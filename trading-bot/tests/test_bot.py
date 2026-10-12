@@ -441,6 +441,32 @@ def test_brief_reports_position_and_clean_links():
     assert "cassure baissière" in format_brief([below], [], Config(), pd.Timestamp("2026-10-12 10:00").to_pydatetime())
 
 
+def test_journal_closes_signal_on_take_profit(tmp_path):
+    from trading_bot.journal import add_signal, evaluate, stats_text
+
+    idx = pd.date_range("2026-01-01", periods=8, freq="h", tz="UTC")
+    close = [100, 100, 100, 100, 100, 100, 100, 100]
+    high = [101, 101, 101, 101.5, 105, 101, 101, 101]
+    low = [99, 99, 99, 99.5, 100, 99, 99, 99]
+    df = pd.DataFrame({"open": close, "high": high, "low": low, "close": close, "volume": 1.0}, index=idx)
+
+    class Provider:
+        def fetch(self, symbol, interval, limit):
+            return df
+
+    sig = Signal("TEST", "1h", idx[2], "LONG", 100.0, 98.0, 104.0)
+    cfg = Config(fee_per_side=0.0, max_hold_bars=10)
+    state = State(tmp_path / "s.json")
+    add_signal(state, sig)
+    add_signal(state, sig)  # pas de doublon
+    assert len(state.data["journal"]) == 1
+    assert evaluate(state, cfg, Provider()) == 1
+    entry = state.data["journal"][0]
+    assert entry["status"] == "closed" and entry["result"] == "TP"
+    assert entry["r"] == pytest.approx(2.0)  # gain 4 pour un risque de 2
+    assert "Gagnants (TP) : 100 %" in stats_text(state, "12/10 10:00")
+
+
 def test_state_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     State(path).mark("k1")

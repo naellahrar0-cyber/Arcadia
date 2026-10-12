@@ -137,6 +137,7 @@ HELP_TEXT = "\n".join([
     "🤖 Commandes :",
     "/brief : brief complet maintenant (prix, signaux, actualités)",
     "/run : analyse maintenant, dit ACHAT, VENTE ou pas d'entrée",
+    "/journal : résultats réels des signaux envoyés (gagnants, R moyen)",
     "/prix : prix et tendance des paires suivies",
     "/status : état du bot et dernier scan",
     "/aide : cette liste",
