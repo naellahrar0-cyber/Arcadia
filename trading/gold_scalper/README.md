@@ -12,7 +12,7 @@ honestly, filters them with a small AI model, and draws the chart.
     python gold_scalper.py --synthetic --live          # demo on simulated data
     python gold_scalper.py --csv xauusd_m5.csv --live  # your own 5-minute OHLC data
 
-CSV columns: `time,open,high,low,close` (UTC). Export from MT5, TradingView or Dukascopy.
+CSV columns: `time,open,high,low,close` (UTC). Export from MT5 or Dukascopy.
 
 Outputs in `gold_out/`: `chart.html` (candles, EMAs, buy/sell markers, SL/TP, equity),
 `trades.csv`, `report.json`.
