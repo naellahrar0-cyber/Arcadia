@@ -6,6 +6,7 @@ Usage:
   python gold_scalper.py --synthetic                 # demo on simulated data
   python gold_scalper.py --csv xauusd_m5.csv         # your own OHLC data
   python gold_scalper.py --csv xauusd_m5.csv --live  # signal on the last closed bar
+  python gold_scalper.py --tradingview --live        # download XAUUSD M5 from TradingView
 
 CSV format: columns time,open,high,low,close (time in UTC, e.g. 5-minute bars).
 Outputs go to ./gold_out/ : trades.csv, report.json, chart.html
@@ -49,6 +50,25 @@ def load_csv(path):
     df["time"] = pd.to_datetime(df["time"], utc=True).dt.tz_convert(None)
     df = df.set_index("time").sort_index()[["open", "high", "low", "close"]]
     return df.astype(float).dropna()
+
+
+def fetch_tradingview(symbol="XAUUSD", exchange="OANDA", interval="5m", n_bars=5000):
+    """Download OHLC bars from TradingView with the community `tvdatafeed` package.
+    Install with: pip install tvdatafeed. Login is optional; set TV_USER and TV_PASS to use one."""
+    try:
+        from tvDatafeed import Interval, TvDatafeed
+    except ImportError as e:
+        raise SystemExit("Missing package: run 'pip install tvdatafeed' to use --tradingview") from e
+    tv_interval = {"1m": Interval.in_1_minute, "5m": Interval.in_5_minute,
+                   "15m": Interval.in_15_minute, "1h": Interval.in_1_hour}[interval]
+    user, pwd = os.environ.get("TV_USER"), os.environ.get("TV_PASS")
+    tv = TvDatafeed(user, pwd) if user and pwd else TvDatafeed()
+    raw = tv.get_hist(symbol=symbol, exchange=exchange, interval=tv_interval, n_bars=n_bars)
+    if raw is None or raw.empty:
+        raise SystemExit(f"TradingView returned no data for {exchange}:{symbol}")
+    df = raw[["open", "high", "low", "close"]].astype(float).dropna()
+    df.index = pd.to_datetime(df.index)  # TradingView timestamps are treated as UTC
+    return df.sort_index()
 
 
 def synthetic_gold(n=20_000, seed=7):
@@ -285,16 +305,29 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv", help="OHLC CSV file (time,open,high,low,close)")
     ap.add_argument("--synthetic", action="store_true", help="use simulated data")
+    ap.add_argument("--tradingview", action="store_true", help="download data from TradingView")
+    ap.add_argument("--tv-symbol", default="XAUUSD")
+    ap.add_argument("--tv-exchange", default="OANDA")
+    ap.add_argument("--tv-interval", default="5m", choices=["1m", "5m", "15m", "1h"])
+    ap.add_argument("--tv-bars", type=int, default=5000)
     ap.add_argument("--out", default="gold_out")
     ap.add_argument("--split", type=float, default=0.6, help="fraction of data used to train the AI filter")
     ap.add_argument("--bars", type=int, default=1000, help="candles shown in chart")
     ap.add_argument("--live", action="store_true", help="print the signal on the last bar")
     args = ap.parse_args()
-    if not args.csv and not args.synthetic:
-        ap.error("give --csv FILE or --synthetic")
+    if not (args.csv or args.synthetic or args.tradingview):
+        ap.error("give --csv FILE, --synthetic or --tradingview")
 
     cfg = Config()
-    raw = load_csv(args.csv) if args.csv else synthetic_gold()
+    if args.tradingview:
+        raw = fetch_tradingview(args.tv_symbol, args.tv_exchange, args.tv_interval, args.tv_bars)
+        os.makedirs(args.out, exist_ok=True)
+        raw.to_csv(os.path.join(args.out, "tradingview_bars.csv"))  # reuse later with --csv
+        print(f"Downloaded {len(raw)} bars from TradingView ({args.tv_exchange}:{args.tv_symbol}, {args.tv_interval})")
+    elif args.csv:
+        raw = load_csv(args.csv)
+    else:
+        raw = synthetic_gold()
     df = add_indicators(raw, cfg).dropna(subset=["ema_t", "rsi", "atr"])
     X = feature_matrix(df)
     split_time = df.index[int(len(df) * args.split)]
